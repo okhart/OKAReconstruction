@@ -1,0 +1,12 @@
+Processing 500000 events...
+
+==============================
+TOTAL EVENTS PROCESSED: 478767
+SKIPPED (ambiguous hits): 357045
+SKIPPED (< 3 tracks): 7803
+SKIPPED (χ² cut):         32208
+GOOD EVENTS (fully matched): 81014
+EFFICIENCY:                  99.8544%
+==============================
+
+Done.
