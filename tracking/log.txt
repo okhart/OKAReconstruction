@@ -1,0 +1,9 @@
+==============================
+TOTAL EVENTS PROCESSED: 138814
+SKIPPED (ambiguous hits): 87982
+SKIPPED (< 3 tracks): 0
+SKIPPED (χ² cut):         2
+GOOD EVENTS (fully matched): 50827
+EFFICIENCY:                  99.9978%
+==============================
+
