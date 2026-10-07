@@ -44,6 +44,8 @@ struct CKFConfig {
     bool greedy = true;            ///< Greedy: remove hits after each track
     bool generous = false;         ///< Generous: explore all branches (overrides greedy)
 
+    ZOrder zOrder = ZOrder::DecreasingZ;///< Order of planes
+
     void setGreedy(bool value) { greedy = value; }
     void setGenerous(bool value) {
         generous = value;
@@ -190,7 +192,7 @@ inline void updateKalmanState(KalmanState2D& state, double measuredCoord, double
  * @return               Vector of planes, each plane is a vector of hits.
  */
 inline vector<vector<const hit*>> groupHitsByPlane(
-    const vector<const hit*>& hits, PlaneType axis, bool alreadyGrouped = false)
+    const vector<const hit*>& hits, PlaneType axis, bool alreadyGrouped = false, ZOrder zOrder)
 {
     (void)alreadyGrouped;  // placeholder for future optimisation
 
@@ -204,10 +206,16 @@ inline vector<vector<const hit*>> groupHitsByPlane(
     }
 
     vector<vector<const hit*>> hitsByPlane;
+
     hitsByPlane.reserve(hitsGroupedByZ.size());
+
     for (const auto& zAndHits : hitsGroupedByZ) {
         hitsByPlane.push_back(zAndHits.second);
     }
+
+    if (zOrder == ZOrder::DecreasingZ)
+        reverse(hitsByPlane.begin(), hitsByPlane.end());
+
     return hitsByPlane;
 }
 

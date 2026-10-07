@@ -9,6 +9,7 @@
 #include <vector>
 #include <algorithm>
 #include <TH2F.h>
+#include <q.h>
 
 using namespace std;
 
@@ -53,6 +54,10 @@ public:
     double getSigma() const { return sigma; }
     PlaneType getType() const { return type; }
 
+    double getMom() const { return momentum; }
+    double getBeta() const { return this->beta; }
+
+
     // ===== COORDINATE CHECKS ===========================
     bool hasX() const {
         return (type == PlaneType::ZX || type == PlaneType::ZXY) && !std::isnan(x);
@@ -92,6 +97,10 @@ private:
     const hit** hits;   ///< Array of hits belonging to this track
     int nHits;          ///< Number of hits
     double chi2;        ///< Chi-squared/ndf goodness-of-fit
+    double momentum;
+    double beta;
+
+    CovarianceByZ covarianceByZ;
 
     // =====================================================
     // ===== WEIGHTED LINE FITTING =========================
@@ -298,6 +307,25 @@ public:
             else cout << "ZXY";
             cout << ", Sigma=" << hits[i]->getSigma() << endl;
         }
+    }
+    void calculateCovariances(const QByZ& qByZ)
+    {
+        // TODO:
+        // Run Kalman along the track.
+        // At each z obtain Q(z) from qByZ.
+        // Store resulting covariance in covarianceByZ[z].
+    }
+
+    double getSigmaX(double z) const
+    {
+        // TODO: return sqrt(covarianceByZ[z].varX)
+        return NAN;
+    }
+
+    double getSigmaY(double z) const
+    {
+        // TODO: return sqrt(covarianceByZ[z].varY)
+        return NAN;
     }
 };
 

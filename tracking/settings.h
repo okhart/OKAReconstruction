@@ -6,7 +6,7 @@
 // =====================================================
 
 /// Name of the input ROOT file containing the event tree
-const char* INPUT_FILE = "output2.root";
+const char* INPUT_FILE = "output.root";
 
 /// Name of the TTree inside the input file
 const char* TREE_NAME  = "decay_points";
@@ -52,18 +52,28 @@ const bool DEBUG = false;
 // ===== COMBINATORIAL KALMAN FILTER (CKF) =============
 // =====================================================
 
+
+enum class ZOrder
+{
+    DecreasingZ,
+    IncreasingZ
+};  
+
+/// Choose order of planes in CKF
+const ZOrder CKF_Z_ORDER = ZOrder::DecreasingZ;
+
 /// Minimum number of hits required to form a track
 const int CKF_MIN_HITS = 3;
 
 /// Maximum allowed χ² for a hit to be accepted
-const double CKF_CHI2_CUT = 32.0;
+const double CKF_CHI2_CUT = 1.0;
 
 /// Process noise added to the slope (simulates multiple scattering)
 const double CKF_PROCESS_NOISE = 0.0;
 
 /// Ambiguity threshold: if the difference between the best and second-best
 /// χ² is smaller than this, the track is rejected as ambiguous
-const double CKF_AMBIGUITY_CHI2 = 0.5;
+const double CKF_AMBIGUITY_CHI2 = 4.0;
 
 /// Greedy mode: remove hits after each found track
 const bool CKF_GREEDY = true;
@@ -104,7 +114,7 @@ const int HOUGH_THRESHOLD = 6;
 // =====================================================
 
 /// Maximum χ² per degree of freedom for a reconstructed track
-const double CHI2_PER_NDF_CUT = 1.0;
+const double CHI2_PER_NDF_CUT = 0.6;
 
 /// Expected number of tracks per event (used for validation and filtering)
 const int EXPECTED_N_TRACKS = 3;

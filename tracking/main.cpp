@@ -188,9 +188,10 @@ int main() {
             ckfCfg.chi2AmbiguityCut = CKF_AMBIGUITY_CHI2;
             ckfCfg.setGreedy(CKF_GREEDY);
             ckfCfg.setGenerous(CKF_GENEROUS);
+            ckfCfg.zOrder = CKF_Z_ORDER;
 
-            auto hitsByPlaneZX = groupHitsByPlane(trackHits, PlaneType::ZX);
-            auto hitsByPlaneZY = groupHitsByPlane(trackHits, PlaneType::ZY);
+            auto hitsByPlaneZX = groupHitsByPlane(trackHits, PlaneType::ZX, ckfCfg.zOrder);
+            auto hitsByPlaneZY = groupHitsByPlane(trackHits, PlaneType::ZY, ckfCfg.zOrder);
 
             int ambiguitySkippedThisEvent = 0;
             candidatesZX = findTracksCKF(hitsByPlaneZX, PlaneType::ZX,
