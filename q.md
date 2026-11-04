@@ -6,18 +6,18 @@
 
 - `theta0Highland()` — формула Хайленда для большинства частиц.
 
-\[
+$$
 \theta_0 =
 \frac{13.6\,\text{МэВ}}{\beta p}|q|
 \sqrt{\frac{x}{X_0}}
 \left[
 1+0.038\ln\left(\frac{x}{X_0}\frac{q^2}{\beta^2}\right)
 \right].
-\]
+$$
 
 - `theta0RossiGreisen()` — формула Росси — Грайзена для электронов и позитронов.
 
-\[
+$$
 \boxed{
 \theta_0 =
 \frac{17.5\,\mathrm{MeV}}{\beta p}|q|
@@ -28,7 +28,7 @@
 \right)
 \right]
 }
-\]
+$$
 
 - `computeMultipleScatteringTheta0()` — выбор формулы и расчёт угла рассеяния по параметрам частицы и материала.
 
@@ -58,13 +58,13 @@
 
 При прямом распространении:
 
-\[
+$$
 P_{\phi\phi}'=P_{\phi\phi}+\sigma_\phi^2,
-\]
+$$
 
-\[
+$$
 P_{\theta\theta}'=P_{\theta\theta}+\sigma_\theta^2.
-\]
+$$
 
 (P - ковариационная матрица).
 
