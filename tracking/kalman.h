@@ -2,23 +2,25 @@
 #define KALMAN_H
 
 #include "track.h"
+#include "settings.h"   // ZOrder
+
 #include <vector>
 #include <map>
 #include <cmath>
 #include <algorithm>
+#include <limits>
 
 using namespace std;
 
 // =====================================================
 // ===== 2D KALMAN STATE (one projection: ZX or ZY) ====
 // =====================================================
-
 /**
- * State of a track in a single projection (ZX or ZY):
- *   coord   = measured coordinate (x for ZX, y for ZY)
- *   slope   = derivative d(coord)/dz
+ * State of a track in one projection:
+ *   coord = measured coordinate (x for ZX, y for ZY)
+ *   slope = derivative d(coord)/dz
  *
- * Covariance matrix (uncertainties):
+ * Covariance terms:
  *   varCoord       = Var(coord)
  *   varSlope       = Var(slope)
  *   covCoordSlope  = Cov(coord, slope)
@@ -26,7 +28,6 @@ using namespace std;
 struct KalmanState2D {
     double coord;
     double slope;
-
     double varCoord;
     double varSlope;
     double covCoordSlope;
@@ -35,18 +36,17 @@ struct KalmanState2D {
 // =====================================================
 // ===== TRACK FINDING CONFIGURATION ===================
 // =====================================================
-
 struct CKFConfig {
-    int minHits = 3;               ///< Minimum hits for a valid track
-    double chi2Cut = 9.0;          ///< Maximum χ² for hit acceptance
-    double processNoiseSlope = 0.0;///< Process noise added to slope (multiple scattering)
-    double chi2AmbiguityCut = 1.0; ///< If (second-best - best) < this, reject as ambiguous
-    bool greedy = true;            ///< Greedy: remove hits after each track
-    bool generous = false;         ///< Generous: explore all branches (overrides greedy)
-
-    ZOrder zOrder = ZOrder::DecreasingZ;///< Order of planes
+    int minHits = 3;
+    double chi2Cut = 9.0;
+    double processNoiseSlope = 0.0;
+    double chi2AmbiguityCut = 1.0;
+    bool greedy = true;
+    bool generous = false;
+    ZOrder zOrder = ZOrder::DecreasingZ;
 
     void setGreedy(bool value) { greedy = value; }
+
     void setGenerous(bool value) {
         generous = value;
         if (value) greedy = false;
@@ -56,63 +56,47 @@ struct CKFConfig {
 // =====================================================
 // ===== INITIALISE KALMAN STATE FROM TWO HITS =========
 // =====================================================
-
 /**
- * Initialises the Kalman state using two hits (seed).
- *
- * Derivation (error propagation):
- *   slope0 = (coord2 - coord1) / dz
- *   coord0 = coord2
- *
- *   Var(coord0)          = sigma2^2
- *   Var(slope0)          = (sigma1^2 + sigma2^2) / dz^2
- *   Cov(coord0, slope0)  = sigma2^2 / dz
+ * Initialises the state using two hits (seed).
+ * The order of the two hits follows the configured ZOrder.
  */
-inline KalmanState2D initKalmanState(const hit* firstHit, const hit* secondHit, PlaneType axis) {
-    double z1 = firstHit->getZ();
-    double z2 = secondHit->getZ();
-    double coord1 = firstHit->getCoord(axis);
-    double coord2 = secondHit->getCoord(axis);
-    double sigma1 = firstHit->getSigma();
-    double sigma2 = secondHit->getSigma();
-    double dz = z2 - z1;
+inline KalmanState2D initKalmanState(
+    const hit* firstHit,
+    const hit* secondHit,
+    PlaneType axis)
+{
+    const double z1 = firstHit->getZ();
+    const double z2 = secondHit->getZ();
+    const double coord1 = firstHit->getCoord(axis);
+    const double coord2 = secondHit->getCoord(axis);
+    const double sigma1 = firstHit->getSigma();
+    const double sigma2 = secondHit->getSigma();
+    const double dz = z2 - z1;
 
     KalmanState2D state;
     state.slope = (coord2 - coord1) / dz;
     state.coord = coord2;
-
-    state.varCoord      = sigma2 * sigma2;
-    state.varSlope      = (sigma1 * sigma1 + sigma2 * sigma2) / (dz * dz);
+    state.varCoord = sigma2 * sigma2;
+    state.varSlope = (sigma1 * sigma1 + sigma2 * sigma2) / (dz * dz);
     state.covCoordSlope = (sigma2 * sigma2) / dz;
-
     return state;
 }
 
 // =====================================================
-// ===== PREDICT: extrapolate to next plane ============
+// ===== PREDICT: EXTRAPOLATE TO NEXT PLANE =============
 // =====================================================
-
-/**
- * Predicts the state at the next measurement plane.
- *
- *   coord_pred = coord + slope * dz
- *   slope_pred = slope
- *
- * Covariance propagation:
- *   Var(coord_pred) = Var(coord) + dz^2*Var(slope) + 2*dz*Cov(coord,slope)
- *   Var(slope_pred) = Var(slope) + processNoiseSlope
- *   Cov(coord_pred, slope_pred) = Cov(coord,slope) + dz*Var(slope)
- */
-inline void predictKalmanState(KalmanState2D& state, double dz, double processNoiseSlope = 0.0) {
-    double coordPred = state.coord + state.slope * dz;
-    double slopePred = state.slope;
-
-    double varCoordPred = state.varCoord
-                         + dz * dz * state.varSlope
-                         + 2.0 * dz * state.covCoordSlope;
-
-    double covPred = state.covCoordSlope + dz * state.varSlope;
-    double varSlopePred = state.varSlope + processNoiseSlope;
+inline void predictKalmanState(
+    KalmanState2D& state,
+    double dz,
+    double processNoiseSlope = 0.0)
+{
+    const double coordPred = state.coord + state.slope * dz;
+    const double slopePred = state.slope;
+    const double varCoordPred = state.varCoord
+                              + dz * dz * state.varSlope
+                              + 2.0 * dz * state.covCoordSlope;
+    const double covPred = state.covCoordSlope + dz * state.varSlope;
+    const double varSlopePred = state.varSlope + processNoiseSlope;
 
     state.coord = coordPred;
     state.slope = slopePred;
@@ -122,54 +106,40 @@ inline void predictKalmanState(KalmanState2D& state, double dz, double processNo
 }
 
 // =====================================================
-// ===== CHI² FOR A CANDIDATE HIT (gating) =============
+// ===== CHI² FOR A CANDIDATE HIT (GATING) ==============
 // =====================================================
-
-/**
- * Computes the χ² contribution of a hit candidate.
- *
- *   residual = measuredCoord - coord_pred
- *   S        = Var(coord_pred) + sigma_hit^2
- *   chi2     = residual^2 / S
- */
-inline double computeChi2(const KalmanState2D& state, double measuredCoord, double measurementSigma) {
-    double residualVariance = state.varCoord + measurementSigma * measurementSigma;
-    double residual = measuredCoord - state.coord;
+inline double computeChi2(
+    const KalmanState2D& state,
+    double measuredCoord,
+    double measurementSigma)
+{
+    const double residualVariance = state.varCoord
+                                  + measurementSigma * measurementSigma;
+    const double residual = measuredCoord - state.coord;
     return (residual * residual) / residualVariance;
 }
 
 // =====================================================
-// ===== UPDATE: correct state with the chosen hit =====
+// ===== UPDATE: CORRECT STATE WITH THE CHOSEN HIT ======
 // =====================================================
+inline void updateKalmanState(
+    KalmanState2D& state,
+    double measuredCoord,
+    double measurementSigma)
+{
+    const double residualVariance = state.varCoord
+                                  + measurementSigma * measurementSigma;
+    const double kalmanGainCoord = state.varCoord / residualVariance;
+    const double kalmanGainSlope = state.covCoordSlope / residualVariance;
+    const double residual = measuredCoord - state.coord;
 
-/**
- * Updates the Kalman state after associating a hit.
- *
- * Kalman gain:
- *   S               = Var(coord_pred) + sigma_hit^2
- *   K_coord         = Var(coord_pred) / S
- *   K_slope         = Cov(coord_pred, slope_pred) / S
- *
- *   coord_upd = coord_pred + K_coord * residual
- *   slope_upd = slope_pred + K_slope * residual
- *
- * Covariance update:
- *   Var(coord_upd)       = (1 - K_coord) * Var(coord_pred)
- *   Cov(coord,slope)_upd = (1 - K_coord) * Cov(coord_pred,slope_pred)
- *   Var(slope_upd)       = Var(slope_pred) - Cov(coord_pred,slope_pred)^2 / S
- */
-inline void updateKalmanState(KalmanState2D& state, double measuredCoord, double measurementSigma) {
-    double residualVariance = state.varCoord + measurementSigma * measurementSigma;
-    double kalmanGainCoord = state.varCoord / residualVariance;
-    double kalmanGainSlope = state.covCoordSlope / residualVariance;
-    double residual = measuredCoord - state.coord;
-
-    double coordUpd = state.coord + kalmanGainCoord * residual;
-    double slopeUpd = state.slope + kalmanGainSlope * residual;
-
-    double varCoordUpd = (1.0 - kalmanGainCoord) * state.varCoord;
-    double covUpd = (1.0 - kalmanGainCoord) * state.covCoordSlope;
-    double varSlopeUpd = state.varSlope - (state.covCoordSlope * state.covCoordSlope) / residualVariance;
+    const double coordUpd = state.coord + kalmanGainCoord * residual;
+    const double slopeUpd = state.slope + kalmanGainSlope * residual;
+    const double varCoordUpd = (1.0 - kalmanGainCoord) * state.varCoord;
+    const double covUpd = (1.0 - kalmanGainCoord) * state.covCoordSlope;
+    const double varSlopeUpd = state.varSlope
+                             - (state.covCoordSlope * state.covCoordSlope)
+                               / residualVariance;
 
     state.coord = coordUpd;
     state.slope = slopeUpd;
@@ -181,37 +151,29 @@ inline void updateKalmanState(KalmanState2D& state, double measuredCoord, double
 // =====================================================
 // ===== GROUP HITS BY PLANE ===========================
 // =====================================================
-
 /**
- * Groups hits by their Z-coordinate (plane), keeping only those that
- * measure the requested axis.
- *
- * @param hits           Input hits.
- * @param axis           Projection (ZX or ZY).
- * @param alreadyGrouped If true, assumes hits are already sorted by Z.
- * @return               Vector of planes, each plane is a vector of hits.
+ * Groups hits by their Z-coordinate and keeps only hits measuring axis.
+ * The resulting planes are ordered according to zOrder.
  */
-inline vector<vector<const hit*>> groupHitsByPlane(
-    const vector<const hit*>& hits, PlaneType axis, bool alreadyGrouped = false, ZOrder zOrder)
+inline vector<vector<const hit*> > groupHitsByPlane(
+    const vector<const hit*>& hits,
+    PlaneType axis,
+    ZOrder zOrder,
+    bool alreadyGrouped = false)
 {
-    (void)alreadyGrouped;  // placeholder for future optimisation
-
-    map<double, vector<const hit*>> hitsGroupedByZ;
+    (void)alreadyGrouped; // reserved for a future optimisation
+    map<double, vector<const hit*> > hitsGroupedByZ;
 
     for (const hit* h : hits) {
-        if (h->hasCoord(axis)) {
-            double z = h->getZ();
-            hitsGroupedByZ[z].push_back(h);
-        }
+        if (h && h->hasCoord(axis))
+            hitsGroupedByZ[h->getZ()].push_back(h);
     }
 
-    vector<vector<const hit*>> hitsByPlane;
-
+    vector<vector<const hit*> > hitsByPlane;
     hitsByPlane.reserve(hitsGroupedByZ.size());
 
-    for (const auto& zAndHits : hitsGroupedByZ) {
+    for (const auto& zAndHits : hitsGroupedByZ)
         hitsByPlane.push_back(zAndHits.second);
-    }
 
     if (zOrder == ZOrder::DecreasingZ)
         reverse(hitsByPlane.begin(), hitsByPlane.end());
@@ -219,35 +181,27 @@ inline vector<vector<const hit*>> groupHitsByPlane(
     return hitsByPlane;
 }
 
-/// Overload for non-const hit pointers.
-inline vector<vector<const hit*>> groupHitsByPlane(
-    const vector<hit*>& hits, PlaneType axis, bool alreadyGrouped = false)
+// Overload for the vector<hit*> used by the event loop.
+inline vector<vector<const hit*> > groupHitsByPlane(
+    const vector<hit*>& hits,
+    PlaneType axis,
+    ZOrder zOrder,
+    bool alreadyGrouped = false)
 {
     vector<const hit*> constHits(hits.begin(), hits.end());
-    return groupHitsByPlane(constHits, axis, alreadyGrouped);
+    return groupHitsByPlane(constHits, axis, zOrder, alreadyGrouped);
 }
 
 // =====================================================
-// ===== BUILD A SINGLE TRACK FROM A SEED (GREEDY) =====
+// ===== BUILD A SINGLE TRACK FROM A SEED (GREEDY) ======
 // =====================================================
-
 /**
- * Runs the CKF from a seed (firstHit, secondHit) through all remaining planes,
- * taking on each plane the hit with the smallest χ².
- *
- * If no acceptable hit is found on any plane, the track is discarded
- * (no missing planes allowed).
- *
- * @param hitsByPlane     Pre-grouped hits by plane.
- * @param axis            Projection.
- * @param firstHit        First hit of the seed.
- * @param secondHit       Second hit of the seed.
- * @param cfg             CKF configuration.
- * @param ambiguitySkipped Output: incremented if ambiguity is detected.
- * @return                Vector of hits forming the track, or empty if failed.
+ * Runs the CKF from a seed through all remaining planes.
+ * On every plane the hit with the smallest acceptable chi2 is selected.
+ * A candidate is discarded if a plane has no acceptable hit.
  */
 inline vector<const hit*> buildTrackFromSeed(
-    const vector<vector<const hit*>>& hitsByPlane,
+    const vector<vector<const hit*> >& hitsByPlane,
     PlaneType axis,
     const hit* firstHit,
     const hit* secondHit,
@@ -255,46 +209,43 @@ inline vector<const hit*> buildTrackFromSeed(
     int& ambiguitySkipped)
 {
     vector<const hit*> trackHits = { firstHit, secondHit };
-
     KalmanState2D state = initKalmanState(firstHit, secondHit, axis);
     double previousZ = secondHit->getZ();
 
-    int nPlanes = hitsByPlane.size();
+    const int nPlanes = static_cast<int>(hitsByPlane.size());
     for (int planeIndex = 2; planeIndex < nPlanes; ++planeIndex) {
         const vector<const hit*>& hitsOnThisPlane = hitsByPlane[planeIndex];
-        if (hitsOnThisPlane.empty()) {
+        if (hitsOnThisPlane.empty())
             return {};
-        }
 
-        double currentZ = hitsOnThisPlane.front()->getZ();
-        double dz = currentZ - previousZ;
+        const double currentZ = hitsOnThisPlane.front()->getZ();
+        const double dz = currentZ - previousZ;
         predictKalmanState(state, dz, cfg.processNoiseSlope);
 
-        // Find best and second-best hits on this plane
         const hit* bestHit = nullptr;
         double bestChi2 = numeric_limits<double>::infinity();
         double secondBestChi2 = numeric_limits<double>::infinity();
 
         for (const hit* candidateHit : hitsOnThisPlane) {
-            double chi2 = computeChi2(state, candidateHit->getCoord(axis), candidateHit->getSigma());
-            if (chi2 < bestChi2) {
+            const double candidateChi2 = computeChi2(
+                state, candidateHit->getCoord(axis), candidateHit->getSigma());
+
+            if (candidateChi2 < bestChi2) {
                 secondBestChi2 = bestChi2;
-                bestChi2 = chi2;
+                bestChi2 = candidateChi2;
                 bestHit = candidateHit;
-            } else if (chi2 < secondBestChi2) {
-                secondBestChi2 = chi2;
+            } else if (candidateChi2 < secondBestChi2) {
+                secondBestChi2 = candidateChi2;
             }
         }
 
-        if (bestHit == nullptr || bestChi2 >= cfg.chi2Cut) {
+        if (bestHit == nullptr || bestChi2 >= cfg.chi2Cut)
             return {};
-        }
 
-        // Check for ambiguity (two hits with similar χ²)
         if (secondBestChi2 < numeric_limits<double>::infinity()) {
-            double diff = secondBestChi2 - bestChi2;
+            const double diff = secondBestChi2 - bestChi2;
             if (diff < cfg.chi2AmbiguityCut) {
-                ambiguitySkipped++;
+                ++ambiguitySkipped;
                 return {};
             }
         }
@@ -304,36 +255,31 @@ inline vector<const hit*> buildTrackFromSeed(
         previousZ = currentZ;
     }
 
-    if ((int)trackHits.size() < cfg.minHits) {
+    if (static_cast<int>(trackHits.size()) < cfg.minHits)
         return {};
-    }
+
     return trackHits;
 }
 
 // =====================================================
-// ===== RECURSIVE TRACK BUILDING (GENEROUS MODE) ======
+// ===== RECURSIVE TRACK BUILDING (GENEROUS MODE) =======
 // =====================================================
-
-/**
- * Recursively explores all possible hit combinations (branching) for a seed.
- * Used only in generous mode.
- */
 inline void buildTracksRecursive(
-    const vector<vector<const hit*>>& hitsByPlane,
+    const vector<vector<const hit*> >& hitsByPlane,
     PlaneType axis,
     const CKFConfig& cfg,
     int planeIndex,
     double previousZ,
     KalmanState2D state,
     vector<const hit*>& currentTrack,
-    vector<vector<const hit*>>& result,
+    vector<vector<const hit*> >& result,
     int& ambiguitySkipped)
 {
     if (ambiguitySkipped > 0)
         return;
 
-    if (planeIndex == (int)hitsByPlane.size()) {
-        if ((int)currentTrack.size() >= cfg.minHits)
+    if (planeIndex == static_cast<int>(hitsByPlane.size())) {
+        if (static_cast<int>(currentTrack.size()) >= cfg.minHits)
             result.push_back(currentTrack);
         return;
     }
@@ -342,46 +288,45 @@ inline void buildTracksRecursive(
     if (hitsOnThisPlane.empty())
         return;
 
-    double currentZ = hitsOnThisPlane.front()->getZ();
-    double dz = currentZ - previousZ;
+    const double currentZ = hitsOnThisPlane.front()->getZ();
+    const double dz = currentZ - previousZ;
     predictKalmanState(state, dz, cfg.processNoiseSlope);
 
-    vector<pair<const hit*, double>> candidates;  // (hit, χ²)
+    vector<pair<const hit*, double> > candidates;
     double bestChi2 = numeric_limits<double>::infinity();
     double secondBestChi2 = numeric_limits<double>::infinity();
 
     for (const hit* h : hitsOnThisPlane) {
-        double chi2 = computeChi2(state, h->getCoord(axis), h->getSigma());
-        if (chi2 >= cfg.chi2Cut)
+        const double candidateChi2 = computeChi2(
+            state, h->getCoord(axis), h->getSigma());
+        if (candidateChi2 >= cfg.chi2Cut)
             continue;
 
-        candidates.push_back({h, chi2});
-
-        if (chi2 < bestChi2) {
+        candidates.push_back(make_pair(h, candidateChi2));
+        if (candidateChi2 < bestChi2) {
             secondBestChi2 = bestChi2;
-            bestChi2 = chi2;
-        } else if (chi2 < secondBestChi2) {
-            secondBestChi2 = chi2;
+            bestChi2 = candidateChi2;
+        } else if (candidateChi2 < secondBestChi2) {
+            secondBestChi2 = candidateChi2;
         }
     }
 
     if (candidates.empty())
         return;
 
-    // Ambiguity check at this plane
     if (secondBestChi2 < numeric_limits<double>::infinity() &&
-        secondBestChi2 - bestChi2 < cfg.chi2AmbiguityCut)
-    {
-        ambiguitySkipped++;
+        secondBestChi2 - bestChi2 < cfg.chi2AmbiguityCut) {
+        ++ambiguitySkipped;
         return;
     }
 
-    // Branch over all viable candidates
-    for (auto& candidate : candidates) {
+    for (const auto& candidate : candidates) {
         KalmanState2D nextState = state;
-        updateKalmanState(nextState, candidate.first->getCoord(axis), candidate.first->getSigma());
-
+        updateKalmanState(nextState,
+                          candidate.first->getCoord(axis),
+                          candidate.first->getSigma());
         currentTrack.push_back(candidate.first);
+
         buildTracksRecursive(
             hitsByPlane, axis, cfg,
             planeIndex + 1,
@@ -390,29 +335,27 @@ inline void buildTracksRecursive(
             currentTrack,
             result,
             ambiguitySkipped);
+
         currentTrack.pop_back();
     }
 }
 
-/**
- * Wrapper for generous mode: builds all possible tracks from a seed.
- */
-inline vector<vector<const hit*>> buildTracksFromSeedGenerous(
-    const vector<vector<const hit*>>& hitsByPlane,
+// Build all possible tracks from one seed (generous mode).
+inline vector<vector<const hit*> > buildTracksFromSeedGenerous(
+    const vector<vector<const hit*> >& hitsByPlane,
     PlaneType axis,
     const hit* firstHit,
     const hit* secondHit,
     const CKFConfig cfg,
     int& ambiguitySkipped)
 {
-    vector<vector<const hit*>> result;
+    vector<vector<const hit*> > result;
     vector<const hit*> currentTrack = { firstHit, secondHit };
-
     KalmanState2D state = initKalmanState(firstHit, secondHit, axis);
 
     buildTracksRecursive(
         hitsByPlane, axis, cfg,
-        2,                 // start from plane index 2 (third plane)
+        2,
         secondHit->getZ(),
         state,
         currentTrack,
@@ -425,91 +368,71 @@ inline vector<vector<const hit*>> buildTracksFromSeedGenerous(
 // =====================================================
 // ===== MAIN ITERATIVE TRACK FINDER (CKF) =============
 // =====================================================
-
 /**
- * Main function to find tracks using the Combinatorial Kalman Filter.
- *
- * In each round, it tries all seeds (pairs of hits on the first two planes).
- * When a valid track is found (greedy mode), those hits are removed and the
- * process repeats. In generous mode, all possible branches are explored.
- *
- * @param hitsByPlane      Pre-grouped hits (will be modified in greedy mode).
- * @param axis             Projection (ZX or ZY).
- * @param ambiguitySkipped Output: number of tracks rejected due to ambiguity.
- * @param cfg              CKF configuration.
- * @return                 Vector of found tracks (each as a vector of hit pointers).
+ * Finds projection candidates with the Combinatorial Kalman Filter.
+ * Each returned candidate is a vector of hit pointers in one projection.
  */
-inline vector<vector<const hit*>> findTracksCKF(
-    vector<vector<const hit*>> hitsByPlane,
+inline vector<vector<const hit*> > findTracksCKF(
+    vector<vector<const hit*> > hitsByPlane,
     PlaneType axis,
     int& ambiguitySkipped,
     const CKFConfig cfg)
 {
-    vector<vector<const hit*>> foundTracks;
-
-    if (hitsByPlane.size() < 2) {
+    vector<vector<const hit*> > foundTracks;
+    if (hitsByPlane.size() < 2)
         return foundTracks;
-    }
 
-    // =====================================================
-    // ===== GENEROUS MODE ================================
-    // =====================================================
+    // ---- Generous mode ----
     if (cfg.generous) {
         for (const hit* firstHit : hitsByPlane[0]) {
             for (const hit* secondHit : hitsByPlane[1]) {
-                vector<vector<const hit*>> candidates =
+                vector<vector<const hit*> > candidates =
                     buildTracksFromSeedGenerous(
-                        hitsByPlane, axis,
-                        firstHit, secondHit,
-                        cfg,
-                        ambiguitySkipped);
+                        hitsByPlane, axis, firstHit, secondHit,
+                        cfg, ambiguitySkipped);
 
                 if (ambiguitySkipped > 0)
                     return {};
 
                 foundTracks.insert(foundTracks.end(),
-                                   candidates.begin(),
-                                   candidates.end());
+                                   candidates.begin(), candidates.end());
             }
         }
         return foundTracks;
     }
 
-    // =====================================================
-    // ===== GREEDY MODE ==================================
-    // =====================================================
+    // ---- Greedy mode ----
     while (true) {
         vector<const hit*> foundTrack;
 
-        // Try all seeds
         for (const hit* firstHit : hitsByPlane[0]) {
             for (const hit* secondHit : hitsByPlane[1]) {
-                vector<const hit*> candidate =
-                    buildTrackFromSeed(hitsByPlane, axis, firstHit, secondHit, cfg, ambiguitySkipped);
+                vector<const hit*> candidate = buildTrackFromSeed(
+                    hitsByPlane, axis, firstHit, secondHit,
+                    cfg, ambiguitySkipped);
 
-                if (ambiguitySkipped > 0) {
+                if (ambiguitySkipped > 0)
                     return {};
-                }
 
                 if (!candidate.empty()) {
                     foundTrack = candidate;
                     break;
                 }
             }
-            if (!foundTrack.empty()) break;
+            if (!foundTrack.empty())
+                break;
         }
 
-        if (foundTrack.empty()) {
-            break;  // no more tracks
-        }
+        if (foundTrack.empty())
+            break;
 
         foundTracks.push_back(foundTrack);
 
-        // Remove found hits (only if greedy is true)
         if (cfg.greedy) {
             for (size_t planeIndex = 0; planeIndex < foundTrack.size(); ++planeIndex) {
                 vector<const hit*>& plane = hitsByPlane[planeIndex];
-                plane.erase(remove(plane.begin(), plane.end(), foundTrack[planeIndex]), plane.end());
+                plane.erase(remove(plane.begin(), plane.end(),
+                                   foundTrack[planeIndex]), plane.end());
             }
         }
     }
