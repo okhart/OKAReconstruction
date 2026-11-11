@@ -1,14 +1,14 @@
-#ifndef CLUSTER_H
-#define CLUSTER_H
+#ifndef SHOWER_H
+#define SHOWER_H
 
 #include <vector>
 #include "Hit.h"
 #include "ParticleIdentifier.h"
 
-class Cluster {
+class Shower {
 public:
-    Cluster();
-    ~Cluster() = default;
+    Shower();
+    ~Shower() = default;
 
     void AddHit(const Hit& hit);
     void RemoveHit(int index);
