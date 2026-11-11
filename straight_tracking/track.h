@@ -5,6 +5,7 @@
 #include <TTree.h>
 #include <TVector.h>
 #include <TH2F.h>
+#include <Hit.h>
 
 #include <iostream>
 #include <cmath>
@@ -14,63 +15,6 @@
 #include "q.h"
 
 using namespace std;
-
-// =====================================================
-// ===== PLANE TYPE ====================================
-// =====================================================
-
-enum class PlaneType { ZX, ZY, ZXY };
-
-// =====================================================
-// ===== HIT CLASS =====================================
-// =====================================================
-/**
- * Represents one detector measurement.
- * A hit contains z and one or both transverse coordinates.
- */
-class hit {
-private:
-    double z;
-    double x;
-    double y;
-    double sigma;
-    PlaneType type;
-
-public:
-    hit() : z(0), x(0), y(0), sigma(1e-15), type(PlaneType::ZX) {}
-
-    void setZ(double value) { z = value; }
-    void setX(double value) { x = value; }
-    void setY(double value) { y = value; }
-    void setSigma(double value) { sigma = value; }
-    void setType(PlaneType value) { type = value; }
-
-    double getZ() const { return z; }
-    double getX() const { return x; }
-    double getY() const { return y; }
-    double getSigma() const { return sigma; }
-    PlaneType getType() const { return type; }
-
-    bool hasX() const {
-        return (type == PlaneType::ZX || type == PlaneType::ZXY) && !std::isnan(x);
-    }
-
-    bool hasY() const {
-        return (type == PlaneType::ZY || type == PlaneType::ZXY) && !std::isnan(y);
-    }
-
-    bool hasCoord(PlaneType axis) const {
-        if (axis == PlaneType::ZX) return hasX();
-        if (axis == PlaneType::ZY) return hasY();
-        return hasX() || hasY();
-    }
-
-    double getCoord(PlaneType axis) const {
-        if (axis == PlaneType::ZX) return getX();
-        if (axis == PlaneType::ZY) return getY();
-        return NAN;
-    }
-};
 
 // =====================================================
 // ===== TRACK CLASS ===================================
@@ -84,7 +28,7 @@ class track {
 private:
     double a, b;                  // x = a*z + b
     double c, d;                  // y = c*z + d
-    vector<const hit*> hits;      // non-owning references to hits
+    vector<const Hit*> hits;      // non-owning references to hits
     double chi2;                  // chi2/ndf when ndf > 0
     double momentum;              // assigned after stitching
     double beta;                  // v/c, assigned after PID
@@ -132,7 +76,7 @@ private:
         chi2 = 0;
         int nMeasurements = 0;
 
-        for (const hit* h : hits) {
+        for (const Hit* h : hits) {
             const double sigma = h->getSigma();
 
             if (h->hasX()) {
@@ -159,7 +103,7 @@ public:
         : a(0), b(0), c(0), d(0), chi2(0),
           momentum(NAN), beta(NAN) {}
 
-    explicit track(const vector<const hit*>& trackHits)
+    explicit track(const vector<const Hit*>& trackHits)
         : a(0), b(0), c(0), d(0), hits(trackHits), chi2(0),
           momentum(NAN), beta(NAN) {
         fit();
@@ -184,13 +128,13 @@ public:
 
     int getNHits() const { return static_cast<int>(hits.size()); }
 
-    const hit* getHit(int i) const {
+    const Hit* getHit(int i) const {
         if (i >= 0 && static_cast<size_t>(i) < hits.size())
             return hits[static_cast<size_t>(i)];
         return nullptr;
     }
 
-    const vector<const hit*>& getHits() const { return hits; }
+    const vector<const Hit*>& getHits() const { return hits; }
 
     // =====================================================
     // ===== MAIN FITTING ROUTINE ==========================
@@ -205,7 +149,7 @@ public:
 
         // ---- Fit ZX projection ----
         vector<double> zX, xValues, sigmaX;
-        for (const hit* h : hits) {
+        for (const Hit* h : hits) {
             if (!h->hasX()) continue;
             zX.push_back(h->getZ());
             xValues.push_back(h->getX());
@@ -222,7 +166,7 @@ public:
 
         // ---- Fit ZY projection ----
         vector<double> zY, yValues, sigmaY;
-        for (const hit* h : hits) {
+        for (const Hit* h : hits) {
             if (!h->hasY()) continue;
             zY.push_back(h->getZ());
             yValues.push_back(h->getY());
@@ -246,7 +190,7 @@ public:
         cout << "  ZY: y = " << c << "*z + " << d << endl;
 
         int nMeasurements = 0;
-        for (const hit* h : hits) {
+        for (const Hit* h : hits) {
             if (h->hasX()) ++nMeasurements;
             if (h->hasY()) ++nMeasurements;
         }
@@ -258,7 +202,7 @@ public:
             cout << "  chi2 = " << chi2 << " (ndf <= 0)" << endl;
 
         for (size_t i = 0; i < hits.size(); ++i) {
-            const hit* h = hits[i];
+            const Hit* h = hits[i];
             cout << "    Hit " << i << ": Z=" << h->getZ();
             if (h->hasX()) cout << ", X=" << h->getX();
             if (h->hasY()) cout << ", Y=" << h->getY();

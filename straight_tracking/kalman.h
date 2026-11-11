@@ -61,8 +61,8 @@ struct CKFConfig {
  * The order of the two hits follows the configured ZOrder.
  */
 inline KalmanState2D initKalmanState(
-    const hit* firstHit,
-    const hit* secondHit,
+    const Hit* firstHit,
+    const Hit* secondHit,
     PlaneType axis)
 {
     const double z1 = firstHit->getZ();
@@ -155,21 +155,21 @@ inline void updateKalmanState(
  * Groups hits by their Z-coordinate and keeps only hits measuring axis.
  * The resulting planes are ordered according to zOrder.
  */
-inline vector<vector<const hit*> > groupHitsByPlane(
-    const vector<const hit*>& hits,
+inline vector<vector<const Hit*> > groupHitsByPlane(
+    const vector<const Hit*>& hits,
     PlaneType axis,
     ZOrder zOrder,
     bool alreadyGrouped = false)
 {
     (void)alreadyGrouped; // reserved for a future optimisation
-    map<double, vector<const hit*> > hitsGroupedByZ;
+    map<double, vector<const Hit*> > hitsGroupedByZ;
 
-    for (const hit* h : hits) {
+    for (const Hit* h : hits) {
         if (h && h->hasCoord(axis))
             hitsGroupedByZ[h->getZ()].push_back(h);
     }
 
-    vector<vector<const hit*> > hitsByPlane;
+    vector<vector<const Hit*> > hitsByPlane;
     hitsByPlane.reserve(hitsGroupedByZ.size());
 
     for (const auto& zAndHits : hitsGroupedByZ)
@@ -181,14 +181,14 @@ inline vector<vector<const hit*> > groupHitsByPlane(
     return hitsByPlane;
 }
 
-// Overload for the vector<hit*> used by the event loop.
-inline vector<vector<const hit*> > groupHitsByPlane(
-    const vector<hit*>& hits,
+// Overload for the vector<Hit*> used by the event loop.
+inline vector<vector<const Hit*> > groupHitsByPlane(
+    const vector<Hit*>& hits,
     PlaneType axis,
     ZOrder zOrder,
     bool alreadyGrouped = false)
 {
-    vector<const hit*> constHits(hits.begin(), hits.end());
+    vector<const Hit*> constHits(hits.begin(), hits.end());
     return groupHitsByPlane(constHits, axis, zOrder, alreadyGrouped);
 }
 
@@ -200,21 +200,21 @@ inline vector<vector<const hit*> > groupHitsByPlane(
  * On every plane the hit with the smallest acceptable chi2 is selected.
  * A candidate is discarded if a plane has no acceptable hit.
  */
-inline vector<const hit*> buildTrackFromSeed(
-    const vector<vector<const hit*> >& hitsByPlane,
+inline vector<const Hit*> buildTrackFromSeed(
+    const vector<vector<const Hit*> >& hitsByPlane,
     PlaneType axis,
-    const hit* firstHit,
-    const hit* secondHit,
+    const Hit* firstHit,
+    const Hit* secondHit,
     const CKFConfig cfg,
     int& ambiguitySkipped)
 {
-    vector<const hit*> trackHits = { firstHit, secondHit };
+    vector<const Hit*> trackHits = { firstHit, secondHit };
     KalmanState2D state = initKalmanState(firstHit, secondHit, axis);
     double previousZ = secondHit->getZ();
 
     const int nPlanes = static_cast<int>(hitsByPlane.size());
     for (int planeIndex = 2; planeIndex < nPlanes; ++planeIndex) {
-        const vector<const hit*>& hitsOnThisPlane = hitsByPlane[planeIndex];
+        const vector<const Hit*>& hitsOnThisPlane = hitsByPlane[planeIndex];
         if (hitsOnThisPlane.empty())
             return {};
 
@@ -222,11 +222,11 @@ inline vector<const hit*> buildTrackFromSeed(
         const double dz = currentZ - previousZ;
         predictKalmanState(state, dz, cfg.processNoiseSlope);
 
-        const hit* bestHit = nullptr;
+        const Hit* bestHit = nullptr;
         double bestChi2 = numeric_limits<double>::infinity();
         double secondBestChi2 = numeric_limits<double>::infinity();
 
-        for (const hit* candidateHit : hitsOnThisPlane) {
+        for (const Hit* candidateHit : hitsOnThisPlane) {
             const double candidateChi2 = computeChi2(
                 state, candidateHit->getCoord(axis), candidateHit->getSigma());
 
@@ -265,14 +265,14 @@ inline vector<const hit*> buildTrackFromSeed(
 // ===== RECURSIVE TRACK BUILDING (GENEROUS MODE) =======
 // =====================================================
 inline void buildTracksRecursive(
-    const vector<vector<const hit*> >& hitsByPlane,
+    const vector<vector<const Hit*> >& hitsByPlane,
     PlaneType axis,
     const CKFConfig& cfg,
     int planeIndex,
     double previousZ,
     KalmanState2D state,
-    vector<const hit*>& currentTrack,
-    vector<vector<const hit*> >& result,
+    vector<const Hit*>& currentTrack,
+    vector<vector<const Hit*> >& result,
     int& ambiguitySkipped)
 {
     if (ambiguitySkipped > 0)
@@ -284,7 +284,7 @@ inline void buildTracksRecursive(
         return;
     }
 
-    const vector<const hit*>& hitsOnThisPlane = hitsByPlane[planeIndex];
+    const vector<const Hit*>& hitsOnThisPlane = hitsByPlane[planeIndex];
     if (hitsOnThisPlane.empty())
         return;
 
@@ -292,11 +292,11 @@ inline void buildTracksRecursive(
     const double dz = currentZ - previousZ;
     predictKalmanState(state, dz, cfg.processNoiseSlope);
 
-    vector<pair<const hit*, double> > candidates;
+    vector<pair<const Hit*, double> > candidates;
     double bestChi2 = numeric_limits<double>::infinity();
     double secondBestChi2 = numeric_limits<double>::infinity();
 
-    for (const hit* h : hitsOnThisPlane) {
+    for (const Hit* h : hitsOnThisPlane) {
         const double candidateChi2 = computeChi2(
             state, h->getCoord(axis), h->getSigma());
         if (candidateChi2 >= cfg.chi2Cut)
@@ -341,16 +341,16 @@ inline void buildTracksRecursive(
 }
 
 // Build all possible tracks from one seed (generous mode).
-inline vector<vector<const hit*> > buildTracksFromSeedGenerous(
-    const vector<vector<const hit*> >& hitsByPlane,
+inline vector<vector<const Hit*> > buildTracksFromSeedGenerous(
+    const vector<vector<const Hit*> >& hitsByPlane,
     PlaneType axis,
-    const hit* firstHit,
-    const hit* secondHit,
+    const Hit* firstHit,
+    const Hit* secondHit,
     const CKFConfig cfg,
     int& ambiguitySkipped)
 {
-    vector<vector<const hit*> > result;
-    vector<const hit*> currentTrack = { firstHit, secondHit };
+    vector<vector<const Hit*> > result;
+    vector<const Hit*> currentTrack = { firstHit, secondHit };
     KalmanState2D state = initKalmanState(firstHit, secondHit, axis);
 
     buildTracksRecursive(
@@ -372,21 +372,21 @@ inline vector<vector<const hit*> > buildTracksFromSeedGenerous(
  * Finds projection candidates with the Combinatorial Kalman Filter.
  * Each returned candidate is a vector of hit pointers in one projection.
  */
-inline vector<vector<const hit*> > findTracksCKF(
-    vector<vector<const hit*> > hitsByPlane,
+inline vector<vector<const Hit*> > findTracksCKF(
+    vector<vector<const Hit*> > hitsByPlane,
     PlaneType axis,
     int& ambiguitySkipped,
     const CKFConfig cfg)
 {
-    vector<vector<const hit*> > foundTracks;
+    vector<vector<const Hit*> > foundTracks;
     if (hitsByPlane.size() < 2)
         return foundTracks;
 
     // ---- Generous mode ----
     if (cfg.generous) {
-        for (const hit* firstHit : hitsByPlane[0]) {
-            for (const hit* secondHit : hitsByPlane[1]) {
-                vector<vector<const hit*> > candidates =
+        for (const Hit* firstHit : hitsByPlane[0]) {
+            for (const Hit* secondHit : hitsByPlane[1]) {
+                vector<vector<const Hit*> > candidates =
                     buildTracksFromSeedGenerous(
                         hitsByPlane, axis, firstHit, secondHit,
                         cfg, ambiguitySkipped);
@@ -403,11 +403,11 @@ inline vector<vector<const hit*> > findTracksCKF(
 
     // ---- Greedy mode ----
     while (true) {
-        vector<const hit*> foundTrack;
+        vector<const Hit*> foundTrack;
 
-        for (const hit* firstHit : hitsByPlane[0]) {
-            for (const hit* secondHit : hitsByPlane[1]) {
-                vector<const hit*> candidate = buildTrackFromSeed(
+        for (const Hit* firstHit : hitsByPlane[0]) {
+            for (const Hit* secondHit : hitsByPlane[1]) {
+                vector<const Hit*> candidate = buildTrackFromSeed(
                     hitsByPlane, axis, firstHit, secondHit,
                     cfg, ambiguitySkipped);
 
@@ -430,7 +430,7 @@ inline vector<vector<const hit*> > findTracksCKF(
 
         if (cfg.greedy) {
             for (size_t planeIndex = 0; planeIndex < foundTrack.size(); ++planeIndex) {
-                vector<const hit*>& plane = hitsByPlane[planeIndex];
+                vector<const Hit*>& plane = hitsByPlane[planeIndex];
                 plane.erase(remove(plane.begin(), plane.end(),
                                    foundTrack[planeIndex]), plane.end());
             }
