@@ -10,7 +10,7 @@ public:
     ClusterBuilder();
     ~ClusterBuilder() = default;
 
-    void SetHits(const std::vector<Hit>& hits);  //Load all hits of a detector
+    void SetHits(const std::vector<CalHit>& hits);  //Load all hits of a detector
 
     void BuildClusters();   //Make separate clusters
 
@@ -19,7 +19,7 @@ public:
     void Clear();   //Make ready for the next event
 
 private:
-    std::vector<Hit> hits;
+    std::vector<CalHit> hits;
     std::vector<Cluster> clusters;
 };
 

@@ -28,11 +28,11 @@ using namespace std;
  * ambiguitySkipped counts CKF candidates rejected due to ambiguity.
  */
 inline vector<track> findTracks(
-    const vector<hit*>& hits,
+    const vector<Hit*>& hits,
     int& ambiguitySkipped)
 {
-    vector<vector<const hit*> > candidatesZX;
-    vector<vector<const hit*> > candidatesZY;
+    vector<vector<const Hit*> > candidatesZX;
+    vector<vector<const Hit*> > candidatesZY;
 
     // -------------------------------------------------
     // Find projection candidates.
@@ -47,9 +47,9 @@ inline vector<track> findTracks(
         ckfCfg.setGenerous(CKF_GENEROUS);
         ckfCfg.zOrder = CKF_Z_ORDER;
 
-        const vector<vector<const hit*> > hitsByPlaneZX =
+        const vector<vector<const Hit*> > hitsByPlaneZX =
             groupHitsByPlane(hits, PlaneType::ZX, ckfCfg.zOrder);
-        const vector<vector<const hit*> > hitsByPlaneZY =
+        const vector<vector<const Hit*> > hitsByPlaneZY =
             groupHitsByPlane(hits, PlaneType::ZY, ckfCfg.zOrder);
 
         candidatesZX = findTracksCKF(
@@ -104,15 +104,15 @@ inline vector<track> findTracks(
     // -------------------------------------------------
     vector<track> combinedTracks;
 
-    for (const vector<const hit*>& zxHits : candidatesZX) {
-        for (const vector<const hit*>& zyHits : candidatesZY) {
-            const hit* commonHit = nullptr;
+    for (const vector<const Hit*>& zxHits : candidatesZX) {
+        for (const vector<const Hit*>& zyHits : candidatesZY) {
+            const Hit* commonHit = nullptr;
 
-            for (const hit* zxHit : zxHits) {
+            for (const Hit* zxHit : zxHits) {
                 if (zxHit->getType() != PlaneType::ZXY)
                     continue;
 
-                for (const hit* zyHit : zyHits) {
+                for (const Hit* zyHit : zyHits) {
                     if (zyHit->getType() != PlaneType::ZXY)
                         continue;
 
@@ -129,16 +129,16 @@ inline vector<track> findTracks(
             if (!commonHit)
                 continue;
 
-            vector<const hit*> combinedHits;
+            vector<const Hit*> combinedHits;
             combinedHits.reserve(zxHits.size() + zyHits.size() - 1);
             combinedHits.push_back(commonHit);
 
-            for (const hit* h : zxHits) {
+            for (const Hit* h : zxHits) {
                 if (h != commonHit)
                     combinedHits.push_back(h);
             }
 
-            for (const hit* h : zyHits) {
+            for (const Hit* h : zyHits) {
                 if (h != commonHit)
                     combinedHits.push_back(h);
             }
@@ -162,12 +162,12 @@ inline vector<track> findTracks(
         // Hough candidates may contain several hits in each projection.
         // Build all combinations with 2 ZX, 2 ZY and 1 common ZXY hit.
         for (const track& candidate : combinedTracks) {
-            vector<const hit*> zxHits;
-            vector<const hit*> zyHits;
-            vector<const hit*> zxyHits;
+            vector<const Hit*> zxHits;
+            vector<const Hit*> zyHits;
+            vector<const Hit*> zxyHits;
 
             for (int i = 0; i < candidate.getNHits(); ++i) {
-                const hit* h = candidate.getHit(i);
+                const Hit* h = candidate.getHit(i);
                 if (h->getType() == PlaneType::ZX)
                     zxHits.push_back(h);
                 else if (h->getType() == PlaneType::ZY)
@@ -176,12 +176,12 @@ inline vector<track> findTracks(
                     zxyHits.push_back(h);
             }
 
-            for (const hit* zxyHit : zxyHits) {
+            for (const Hit* zxyHit : zxyHits) {
                 for (size_t i = 0; i < zxHits.size(); ++i) {
                     for (size_t j = i + 1; j < zxHits.size(); ++j) {
                         for (size_t k = 0; k < zyHits.size(); ++k) {
                             for (size_t l = k + 1; l < zyHits.size(); ++l) {
-                                vector<const hit*> selectedHits = {
+                                vector<const Hit*> selectedHits = {
                                     zxyHit,
                                     zxHits[i], zxHits[j],
                                     zyHits[k], zyHits[l]
@@ -207,7 +207,7 @@ inline vector<track> findTracks(
 }
 
 // Simple interface when the caller does not need the ambiguity counter.
-inline vector<track> findTracks(const vector<hit*>& hits)
+inline vector<track> findTracks(const vector<Hit*>& hits)
 {
     int ambiguitySkipped = 0;
     return findTracks(hits, ambiguitySkipped);

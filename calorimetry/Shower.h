@@ -10,10 +10,10 @@ public:
     Cluster();
     ~Cluster() = default;
 
-    void AddHit(const Hit& hit);
+    void AddHit(const CalHit& hit);
     void RemoveHit(int index);
 
-    const std::vector<Hit>& GetHits() const;
+    const std::vector<CalHit>& GetHits() const;
 
     int GetMultiplicity() const;
 
@@ -30,7 +30,7 @@ public:
 
 
 private:
-    std::vector<Hit> hits;
+    std::vector<CalHit> hits;
 
     double energy;
 
